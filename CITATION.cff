@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this project, please cite it using the metadata below."
+title: "QNM Gaussian Process Surrogate"
+authors:
+  - family-names: "Uxue"
+    given-names: "Ariadna"
+year: 2026
+repository-code: "https://github.com/Uxuee/-qnm-gp-surrogate"
+license: "MIT"
