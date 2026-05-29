@@ -11,8 +11,8 @@ $$
 $$
 
 The code computes photon-sphere observables from a small fluid-inspired
-perturbation of Schwarzschild, trains two uncertainty-aware Gaussian Process
-models on a limited number of simulated points, compares against baseline
+perturbation of Schwarzschild, trains two uncertainty-aware Gaussian Processes
+models on a limited number of simulated points, compared against the baseline
 regressors, and then uses the learned surrogate to infer the physical
 parameters that reproduce a target complex quasinormal-mode frequency.
 
@@ -22,7 +22,7 @@ Ringdown observables can be expensive to evaluate if every point in parameter
 space requires solving the full physical model. A surrogate model gives a fast
 approximation while also estimating where it is uncertain.
 
-Here the input parameters are:
+Here, the input parameters are:
 
 - `w`: equation-of-state/profile parameter.
 - `Q`: perturbation strength.
@@ -34,11 +34,7 @@ The learned targets are:
 
 Those are converted into the eikonal QNM estimate
 
-$$
-\omega_{\rm QNM}
-= \ell\,\Omega_c
-- i\left(n+\frac{1}{2}\right)\lambda_c .
-$$
+$$\omega_{\rm QNM} = \ell\,\Omega_c - i\left(n+\frac{1}{2}\right)\lambda_c .$$
 
 where $\Omega_c$ is the circular null-orbit frequency, $\lambda_c$ is the
 Lyapunov exponent, $\ell$ is the angular mode, and $n$ is the overtone number.
@@ -50,25 +46,18 @@ where the eikonal approximation is expected to be most appropriate.
 1. Defines a perturbative black-hole metric model.
 2. Solves the photon-sphere condition:
 
-   $$
-   rA'(r)-2A(r)=0 .
-   $$
+   $rA^{\prime}(r) - 2A(r) = 0$.
 
-3. Computes `Omega_c`, `lambda_c`, and the complex eikonal QNM frequency.
-4. Generates a grid dataset over `(w, Q)`.
-5. Trains two Gaussian Process regressors on a sparse subset of the grid:
+4. Computes `Omega_c`, `lambda_c`, and the complex eikonal QNM frequency.
+5. Generates a grid dataset over `(w, Q)`.
+6. Trains two Gaussian Process regressors on a sparse subset of the grid:
 
-   $$
-   {\rm GP}_{\delta\Omega}(w,Q),
-   \qquad
-   {\rm GP}_{\delta\lambda}(w,Q).
-   $$
-
-6. Tests on withheld grid points.
-7. Compares the GP against linear, polynomial, and random-forest baselines.
-8. Produces prediction, uncertainty, and actual-error maps.
-9. Builds a learning curve versus number of simulations.
-10. Performs inverse parameter search from a target QNM frequency.
+    $\mathrm{GP}_{\delta\Omega}(w,Q) \qquad \mathrm{GP}_{\delta\lambda}(w,Q)$
+8. Tests on withheld grid points.
+9. Compares the GP against linear, polynomial, and random-forest baselines.
+10. Produces prediction, uncertainty, and actual-error maps.
+11. Builds a learning curve versus the number of simulations.
+12. Performs inverse parameter search from a target QNM frequency.
 
 ## Repository Layout
 
@@ -104,7 +93,7 @@ Run the full pipeline:
 python qnm_surrogate.py
 ```
 
-The script regenerates the dataset, trains sparse-data GP models, compares
+The script regenerates the dataset, trains sparse-data GP models, and compares
 baselines, runs parameter recovery, and writes all outputs to `outputs/`.
 
 ## Example Results
@@ -179,8 +168,7 @@ surrogate, again trained only on the sparse subset.
 
 ![GP uncertainty for deltaLambda](outputs/deltaLambda_uncertainty.png)
 
-Caption: GP posterior standard deviation for $\delta\lambda$, showing where
-the Lyapunov-exponent surrogate has higher uncertainty.
+Caption: GP posterior standard deviation for $\delta\lambda$, showing where the Lyapunov-exponent surrogate has higher uncertainty.
 
 ### Absolute Error for `deltaLambda`
 
@@ -193,9 +181,7 @@ $|\delta\lambda_{\rm true}-\delta\lambda_{\rm GP}|$ on the full grid.
 
 ![Sparse-data learning curve](outputs/learning_curve.png)
 
-Caption: Test RMSE as the number of training simulations increases. This is
-the main evidence that the surrogate becomes accurate with far fewer
-evaluations than the full grid.
+Caption: Test RMSE as the number of training simulations increases. This is the main evidence that the surrogate becomes accurate with far fewer evaluations than the full grid.
 
 ## Scientific Status
 
