@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,12 +8,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.optimize import brentq, differential_evolution
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel, Matern, WhiteKernel
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures
 from sklearn.preprocessing import StandardScaler
+from sklearn.exceptions import ConvergenceWarning
 
 
 @dataclass(frozen=True)
@@ -145,21 +150,37 @@ def build_gp(random_state: int = 7):
         GaussianProcessRegressor(
             kernel=kernel,
             normalize_y=True,
-            n_restarts_optimizer=8,
+            n_restarts_optimizer=4,
             random_state=random_state,
         ),
     )
 
 
-def train_models(df: pd.DataFrame, random_state: int = 7):
+def make_sparse_split(
+    df: pd.DataFrame,
+    n_train: int = 80,
+    random_state: int = 7,
+) -> tuple[np.ndarray, np.ndarray]:
+    if n_train >= len(df):
+        raise ValueError("n_train must be smaller than the full dataset size.")
+
+    train_idx, test_idx = train_test_split(
+        np.arange(len(df)), train_size=n_train, random_state=random_state
+    )
+    return train_idx, test_idx
+
+
+def train_models(
+    df: pd.DataFrame,
+    n_train: int = 80,
+    random_state: int = 7,
+):
     X = df[["w", "Q"]].to_numpy()
     targets = {
         "deltaOmega": df["deltaOmega"].to_numpy(),
         "deltaLambda": df["deltaLambda"].to_numpy(),
     }
-    train_idx, test_idx = train_test_split(
-        np.arange(len(df)), test_size=0.2, random_state=random_state
-    )
+    train_idx, test_idx = make_sparse_split(df, n_train=n_train, random_state=random_state)
 
     models = {}
     metrics = []
@@ -171,6 +192,9 @@ def train_models(df: pd.DataFrame, random_state: int = 7):
         metrics.append(
             {
                 "target": name,
+                "model": "GaussianProcess",
+                "n_train": n_train,
+                "n_test": len(test_idx),
                 "rmse": mean_squared_error(y[test_idx], pred, squared=False),
                 "mae": mean_absolute_error(y[test_idx], pred),
                 "r2": r2_score(y[test_idx], pred),
@@ -179,6 +203,90 @@ def train_models(df: pd.DataFrame, random_state: int = 7):
         )
 
     return models, pd.DataFrame(metrics), train_idx, test_idx
+
+
+def baseline_models(random_state: int = 7) -> dict[str, object]:
+    return {
+        "LinearRegression": make_pipeline(StandardScaler(), LinearRegression()),
+        "PolynomialDegree3": make_pipeline(
+            StandardScaler(),
+            PolynomialFeatures(degree=3, include_bias=False),
+            LinearRegression(),
+        ),
+        "RandomForest": RandomForestRegressor(
+            n_estimators=300,
+            min_samples_leaf=2,
+            random_state=random_state,
+        ),
+    }
+
+
+def compare_baselines(
+    df: pd.DataFrame,
+    train_idx: np.ndarray,
+    test_idx: np.ndarray,
+    gp_models: dict[str, object],
+    random_state: int = 7,
+) -> pd.DataFrame:
+    X = df[["w", "Q"]].to_numpy()
+    targets = {
+        "deltaOmega": df["deltaOmega"].to_numpy(),
+        "deltaLambda": df["deltaLambda"].to_numpy(),
+    }
+    rows = []
+
+    for target, y in targets.items():
+        models = {"GaussianProcess": gp_models[target], **baseline_models(random_state)}
+        for model_name, model in models.items():
+            if model_name != "GaussianProcess":
+                model.fit(X[train_idx], y[train_idx])
+            pred = model.predict(X[test_idx])
+            rows.append(
+                {
+                    "target": target,
+                    "model": model_name,
+                    "n_train": len(train_idx),
+                    "n_test": len(test_idx),
+                    "rmse": mean_squared_error(y[test_idx], pred, squared=False),
+                    "mae": mean_absolute_error(y[test_idx], pred),
+                    "r2": r2_score(y[test_idx], pred),
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
+def learning_curve(
+    df: pd.DataFrame,
+    train_sizes: list[int],
+    random_state: int = 7,
+) -> pd.DataFrame:
+    X = df[["w", "Q"]].to_numpy()
+    targets = {
+        "deltaOmega": df["deltaOmega"].to_numpy(),
+        "deltaLambda": df["deltaLambda"].to_numpy(),
+    }
+    rows = []
+
+    for n_train in train_sizes:
+        train_idx, test_idx = make_sparse_split(df, n_train=n_train, random_state=random_state)
+        for target, y in targets.items():
+            model = build_gp(random_state=random_state)
+            model.fit(X[train_idx], y[train_idx])
+            pred, std = model.predict(X[test_idx], return_std=True)
+            rows.append(
+                {
+                    "target": target,
+                    "n_train": n_train,
+                    "n_test": len(test_idx),
+                    "rmse": mean_squared_error(y[test_idx], pred, squared=False),
+                    "mae": mean_absolute_error(y[test_idx], pred),
+                    "r2": r2_score(y[test_idx], pred),
+                    "mean_gp_sigma": float(np.mean(std)),
+                }
+            )
+
+    return pd.DataFrame(rows)
 
 
 def predict_qnm(
@@ -221,21 +329,34 @@ def infer_parameters_from_qnm(
     }
 
 
-def make_plots(df: pd.DataFrame, models: dict[str, object], out_dir: Path) -> None:
+def make_plots(
+    df: pd.DataFrame,
+    models: dict[str, object],
+    train_idx: np.ndarray,
+    out_dir: Path,
+) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     w_grid = np.linspace(0.0, 1.0, 120)
     q_grid = np.linspace(0.0, 0.1, 120)
     W, Q = np.meshgrid(w_grid, q_grid)
     Xplot = np.column_stack([W.ravel(), Q.ravel()])
+    W_eval, Q_eval = np.meshgrid(
+        np.sort(df["w"].unique()),
+        np.sort(df["Q"].unique()),
+    )
 
     for target in ["deltaOmega", "deltaLambda"]:
         pred, std = models[target].predict(Xplot, return_std=True)
+        full_pred = models[target].predict(df[["w", "Q"]].to_numpy())
         Z = pred.reshape(W.shape)
         S = std.reshape(W.shape)
+        err_df = df.assign(abs_error=np.abs(df[target].to_numpy() - full_pred))
+        err = err_df.pivot(index="Q", columns="w", values="abs_error").to_numpy()
 
         fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
         im = ax.pcolormesh(W, Q, Z, shading="auto", cmap="viridis")
-        ax.scatter(df["w"], df["Q"], s=6, c="white", alpha=0.45, linewidths=0)
+        train = df.iloc[train_idx]
+        ax.scatter(train["w"], train["Q"], s=12, c="white", alpha=0.75, linewidths=0)
         ax.set_xlabel("w")
         ax.set_ylabel("Q")
         ax.set_title(f"GP prediction for {target}")
@@ -252,8 +373,40 @@ def make_plots(df: pd.DataFrame, models: dict[str, object], out_dir: Path) -> No
         fig.savefig(out_dir / f"{target}_uncertainty.png", dpi=180)
         plt.close(fig)
 
+        fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
+        im = ax.pcolormesh(
+            W_eval,
+            Q_eval,
+            err,
+            shading="auto",
+            cmap="inferno",
+        )
+        ax.scatter(train["w"], train["Q"], s=12, c="white", alpha=0.75, linewidths=0)
+        ax.set_xlabel("w")
+        ax.set_ylabel("Q")
+        ax.set_title(f"Absolute prediction error for {target}")
+        fig.colorbar(im, ax=ax)
+        fig.savefig(out_dir / f"{target}_error.png", dpi=180)
+        plt.close(fig)
+
+
+def plot_learning_curve(curve: pd.DataFrame, out_dir: Path) -> None:
+    fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
+    for target, group in curve.groupby("target"):
+        ordered = group.sort_values("n_train")
+        ax.plot(ordered["n_train"], ordered["rmse"], marker="o", label=target)
+    ax.set_xlabel("Number of training simulations")
+    ax.set_ylabel("RMSE on withheld grid points")
+    ax.set_yscale("log")
+    ax.set_title("Sparse-data learning curve")
+    ax.legend()
+    fig.savefig(out_dir / "learning_curve.png", dpi=180)
+    plt.close(fig)
+
 
 def main() -> None:
+    warnings.filterwarnings("ignore", category=ConvergenceWarning)
+
     out_dir = Path("outputs")
     out_dir.mkdir(exist_ok=True)
     params = MetricParams()
@@ -262,8 +415,12 @@ def main() -> None:
     df = generate_dataset(grid_size=24, params=params, mode=mode)
     df.to_csv(out_dir / "qnm_dataset.csv", index=False)
 
-    models, metrics, _, _ = train_models(df)
+    models, metrics, train_idx, test_idx = train_models(df, n_train=80)
     metrics.to_csv(out_dir / "gp_metrics.csv", index=False)
+    baselines = compare_baselines(df, train_idx, test_idx, models)
+    baselines.to_csv(out_dir / "baseline_metrics.csv", index=False)
+    curve = learning_curve(df, train_sizes=[20, 40, 80, 160, 300])
+    curve.to_csv(out_dir / "learning_curve.csv", index=False)
 
     true_w, true_Q = 0.63, 0.072
     _, omega_true, lambda_true = qnm_ingredients(true_w, true_Q, params)
@@ -281,14 +438,19 @@ def main() -> None:
         ]
     ).to_csv(out_dir / "parameter_search.csv", index=False)
 
-    make_plots(df, models, out_dir)
+    make_plots(df, models, train_idx, out_dir)
+    plot_learning_curve(curve, out_dir)
 
     print("Wrote:")
     print(f"  {out_dir / 'qnm_dataset.csv'}")
     print(f"  {out_dir / 'gp_metrics.csv'}")
+    print(f"  {out_dir / 'baseline_metrics.csv'}")
+    print(f"  {out_dir / 'learning_curve.csv'}")
     print(f"  {out_dir / 'parameter_search.csv'}")
     print("  outputs/*_prediction.png")
     print("  outputs/*_uncertainty.png")
+    print("  outputs/*_error.png")
+    print("  outputs/learning_curve.png")
     print()
     print(metrics.to_string(index=False))
     print()

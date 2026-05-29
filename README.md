@@ -3,7 +3,7 @@
 Gaussian Process surrogate modelling for fast parameter search in black-hole
 ringdown shifts.
 
-This project implements the stronger two-output version of the idea:
+This project implements a sparse-data, two-output version of the idea:
 
 ```text
 (w, Q) -> (deltaOmega, deltaLambda) -> omega_QNM
@@ -11,8 +11,9 @@ This project implements the stronger two-output version of the idea:
 
 The code computes photon-sphere observables from a small fluid-inspired
 perturbation of Schwarzschild, trains two uncertainty-aware Gaussian Process
-models, and then uses the learned surrogate to infer the physical parameters
-that reproduce a target complex quasinormal-mode frequency.
+models on a limited number of simulated points, compares against baseline
+regressors, and then uses the learned surrogate to infer the physical
+parameters that reproduce a target complex quasinormal-mode frequency.
 
 ## Motivation
 
@@ -50,15 +51,18 @@ Lyapunov exponent, `ell` is the angular mode, and `n` is the overtone number.
 
 3. Computes `Omega_c`, `lambda_c`, and the complex eikonal QNM frequency.
 4. Generates a grid dataset over `(w, Q)`.
-5. Trains two Gaussian Process regressors:
+5. Trains two Gaussian Process regressors on a sparse subset of the grid:
 
    ```text
    GP_deltaOmega(w, Q)
    GP_deltaLambda(w, Q)
    ```
 
-6. Produces prediction and uncertainty maps.
-7. Performs inverse parameter search from a target QNM frequency.
+6. Tests on withheld grid points.
+7. Compares the GP against linear, polynomial, and random-forest baselines.
+8. Produces prediction, uncertainty, and actual-error maps.
+9. Builds a learning curve versus number of simulations.
+10. Performs inverse parameter search from a target QNM frequency.
 
 ## Repository Layout
 
@@ -71,6 +75,8 @@ Lyapunov exponent, `ell` is the angular mode, and `n` is the overtone number.
 |-- outputs/
 |   |-- qnm_dataset.csv       # Generated training/evaluation grid
 |   |-- gp_metrics.csv        # Test-set metrics
+|   |-- baseline_metrics.csv  # GP versus baseline regressors
+|   |-- learning_curve.csv    # Error versus number of training simulations
 |   |-- parameter_search.csv  # Inverse QNM parameter recovery result
 |   `-- *.png                 # Prediction and uncertainty maps
 `-- README.md
@@ -92,17 +98,31 @@ Run the full pipeline:
 python qnm_surrogate.py
 ```
 
-The script regenerates the dataset, trains the GP models, runs parameter
-recovery, and writes all outputs to `outputs/`.
+The script regenerates the dataset, trains sparse-data GP models, compares
+baselines, runs parameter recovery, and writes all outputs to `outputs/`.
 
 ## Example Results
 
-Current test-set metrics:
+The current main run trains on only 80 simulations and tests on the remaining
+496 grid points.
 
 | Target | RMSE | MAE | R2 | Mean GP sigma |
 | --- | ---: | ---: | ---: | ---: |
-| `deltaOmega` | `9.57e-08` | `1.92e-08` | `0.9999999998` | `1.26e-07` |
-| `deltaLambda` | `1.02e-07` | `1.97e-08` | `0.9999999998` | `1.15e-07` |
+| `deltaOmega` | `2.64e-06` | `1.01e-06` | `0.9999998743` | `2.34e-06` |
+| `deltaLambda` | `2.61e-06` | `9.91e-07` | `0.9999998448` | `2.25e-06` |
+
+Baseline comparison with the same 80 training simulations:
+
+| Target | Model | RMSE | R2 |
+| --- | --- | ---: | ---: |
+| `deltaOmega` | Gaussian Process | `2.64e-06` | `0.9999998743` |
+| `deltaOmega` | Linear regression | `1.01e-03` | `0.981675` |
+| `deltaOmega` | Polynomial degree 3 | `4.60e-05` | `0.999962` |
+| `deltaOmega` | Random forest | `8.82e-04` | `0.985951` |
+| `deltaLambda` | Gaussian Process | `2.61e-06` | `0.9999998448` |
+| `deltaLambda` | Linear regression | `1.34e-03` | `0.959115` |
+| `deltaLambda` | Polynomial degree 3 | `4.35e-05` | `0.999957` |
+| `deltaLambda` | Random forest | `1.03e-03` | `0.975866` |
 
 Inverse search example:
 
@@ -115,6 +135,9 @@ Inverse search example:
 | Target `Re(omega)` | `0.420320` |
 | Target `Im(omega)` | `-0.104041` |
 
+The target is off-grid relative to the sparse training subset, so this is a
+surrogate-based inverse search rather than a lookup.
+
 ## Figures
 
 ### GP Prediction for `deltaOmega`
@@ -125,6 +148,10 @@ Inverse search example:
 
 ![GP uncertainty for deltaOmega](outputs/deltaOmega_uncertainty.png)
 
+### Absolute Error for `deltaOmega`
+
+![Absolute error for deltaOmega](outputs/deltaOmega_error.png)
+
 ### GP Prediction for `deltaLambda`
 
 ![GP prediction for deltaLambda](outputs/deltaLambda_prediction.png)
@@ -133,12 +160,24 @@ Inverse search example:
 
 ![GP uncertainty for deltaLambda](outputs/deltaLambda_uncertainty.png)
 
+### Absolute Error for `deltaLambda`
+
+![Absolute error for deltaLambda](outputs/deltaLambda_error.png)
+
+### Learning Curve
+
+![Sparse-data learning curve](outputs/learning_curve.png)
+
 ## Scientific Status
 
 This is a research-prototype pipeline. The machine-learning and QNM workflow is
 real, but the default metric perturbation in `metric_A` is intentionally a toy
 model. It is designed to be easy to replace with the exact perturbative metric
 functions from the paper or from a symbolic/numerical solver.
+
+The current dataset is synthetic/model-generated. The goal is to demonstrate
+the surrogate-modelling workflow before replacing the toy equations with more
+expensive numerical simulations.
 
 The important reusable structure is:
 
