@@ -5,10 +5,7 @@ ringdown shifts.
 
 This project implements a sparse-data, two-output version of the map
 
-$$
-(w,Q)\longrightarrow(\delta\Omega,\delta\lambda)
-\longrightarrow \omega_{\rm QNM}.
-$$
+
 
 The code computes photon-sphere observables from a small fluid-inspired
 perturbation of Schwarzschild, trains two uncertainty-aware Gaussian Processes
@@ -52,7 +49,9 @@ where the eikonal approximation is expected to be most appropriate.
 5. Generates a grid dataset over `(w, Q)`.
 6. Trains two Gaussian Process regressors on a sparse subset of the grid:
 
-    $\mathrm{GP}_{\delta\Omega}(w,Q) \qquad \mathrm{GP}_{\delta\lambda}(w,Q)$
+- (w, Q) → δΩ
+- (w, Q) → δλ
+  
 8. Tests on withheld grid points.
 9. Compares the GP against linear, polynomial, and random-forest baselines.
 10. Produces prediction, uncertainty, and actual-error maps.
