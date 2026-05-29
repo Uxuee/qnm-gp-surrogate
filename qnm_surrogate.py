@@ -30,7 +30,7 @@ class MetricParams:
 
 @dataclass(frozen=True)
 class QNMMode:
-    ell: int = 2
+    ell: int = 4
     overtone: int = 0
 
 
@@ -410,7 +410,7 @@ def main() -> None:
     out_dir = Path("outputs")
     out_dir.mkdir(exist_ok=True)
     params = MetricParams()
-    mode = QNMMode(ell=2, overtone=0)
+    mode = QNMMode(ell=4, overtone=0)
 
     df = generate_dataset(grid_size=24, params=params, mode=mode)
     df.to_csv(out_dir / "qnm_dataset.csv", index=False)

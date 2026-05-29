@@ -3,11 +3,12 @@
 Gaussian Process surrogate modelling for fast parameter search in black-hole
 ringdown shifts.
 
-This project implements a sparse-data, two-output version of the idea:
+This project implements a sparse-data, two-output version of the map
 
-```text
-(w, Q) -> (deltaOmega, deltaLambda) -> omega_QNM
-```
+$$
+(w,Q)\longrightarrow(\delta\Omega,\delta\lambda)
+\longrightarrow \omega_{\rm QNM}.
+$$
 
 The code computes photon-sphere observables from a small fluid-inspired
 perturbation of Schwarzschild, trains two uncertainty-aware Gaussian Process
@@ -28,35 +29,40 @@ Here the input parameters are:
 
 The learned targets are:
 
-- `deltaOmega`: shift in photon-sphere orbital frequency.
-- `deltaLambda`: shift in the Lyapunov exponent of the unstable null orbit.
+- $\delta\Omega$: shift in photon-sphere orbital frequency.
+- $\delta\lambda$: shift in the Lyapunov exponent of the unstable null orbit.
 
 Those are converted into the eikonal QNM estimate
 
-```text
-omega_QNM = ell * Omega_c - i * (n + 1/2) * lambda_c
-```
+$$
+\omega_{\rm QNM}
+= \ell\,\Omega_c
+- i\left(n+\frac{1}{2}\right)\lambda_c .
+$$
 
-where `Omega_c` is the circular null-orbit frequency, `lambda_c` is the
-Lyapunov exponent, `ell` is the angular mode, and `n` is the overtone number.
+where $\Omega_c$ is the circular null-orbit frequency, $\lambda_c$ is the
+Lyapunov exponent, $\ell$ is the angular mode, and $n$ is the overtone number.
+The current run uses $\ell=4$ and $n=0$, closer to the large-$\ell$ regime
+where the eikonal approximation is expected to be most appropriate.
 
 ## What the Script Does
 
 1. Defines a perturbative black-hole metric model.
 2. Solves the photon-sphere condition:
 
-   ```text
-   r A'(r) - 2 A(r) = 0
-   ```
+   $$
+   rA'(r)-2A(r)=0 .
+   $$
 
 3. Computes `Omega_c`, `lambda_c`, and the complex eikonal QNM frequency.
 4. Generates a grid dataset over `(w, Q)`.
 5. Trains two Gaussian Process regressors on a sparse subset of the grid:
 
-   ```text
-   GP_deltaOmega(w, Q)
-   GP_deltaLambda(w, Q)
-   ```
+   $$
+   {\rm GP}_{\delta\Omega}(w,Q),
+   \qquad
+   {\rm GP}_{\delta\lambda}(w,Q).
+   $$
 
 6. Tests on withheld grid points.
 7. Compares the GP against linear, polynomial, and random-forest baselines.
@@ -104,7 +110,7 @@ baselines, runs parameter recovery, and writes all outputs to `outputs/`.
 ## Example Results
 
 The current main run trains on only 80 simulations and tests on the remaining
-496 grid points.
+496 grid points. The QNM reconstruction uses $\ell=4$ and $n=0$.
 
 | Target | RMSE | MAE | R2 | Mean GP sigma |
 | --- | ---: | ---: | ---: | ---: |
@@ -132,7 +138,7 @@ Inverse search example:
 | Target `Q` | `0.072000` |
 | Recovered `w` | `0.630000` |
 | Recovered `Q` | `0.072000` |
-| Target `Re(omega)` | `0.420320` |
+| Target `Re(omega)` | `0.840640` |
 | Target `Im(omega)` | `-0.104041` |
 
 The target is off-grid relative to the sparse training subset, so this is a
@@ -144,29 +150,52 @@ surrogate-based inverse search rather than a lookup.
 
 ![GP prediction for deltaOmega](outputs/deltaOmega_prediction.png)
 
+Caption: Predicted $\delta\Omega(w,Q)$ from the Gaussian Process surrogate.
+White points mark the sparse training simulations used by the model.
+
 ### GP Uncertainty for `deltaOmega`
 
 ![GP uncertainty for deltaOmega](outputs/deltaOmega_uncertainty.png)
+
+Caption: GP posterior standard deviation for $\delta\Omega$. Larger values
+indicate regions where the surrogate is less certain.
 
 ### Absolute Error for `deltaOmega`
 
 ![Absolute error for deltaOmega](outputs/deltaOmega_error.png)
 
+Caption: Absolute error
+$|\delta\Omega_{\rm true}-\delta\Omega_{\rm GP}|$ evaluated on the full grid.
+This tests whether uncertainty is connected to actual prediction error.
+
 ### GP Prediction for `deltaLambda`
 
 ![GP prediction for deltaLambda](outputs/deltaLambda_prediction.png)
+
+Caption: Predicted $\delta\lambda(w,Q)$ from the second Gaussian Process
+surrogate, again trained only on the sparse subset.
 
 ### GP Uncertainty for `deltaLambda`
 
 ![GP uncertainty for deltaLambda](outputs/deltaLambda_uncertainty.png)
 
+Caption: GP posterior standard deviation for $\delta\lambda$, showing where
+the Lyapunov-exponent surrogate has higher uncertainty.
+
 ### Absolute Error for `deltaLambda`
 
 ![Absolute error for deltaLambda](outputs/deltaLambda_error.png)
 
+Caption: Absolute error
+$|\delta\lambda_{\rm true}-\delta\lambda_{\rm GP}|$ on the full grid.
+
 ### Learning Curve
 
 ![Sparse-data learning curve](outputs/learning_curve.png)
+
+Caption: Test RMSE as the number of training simulations increases. This is
+the main evidence that the surrogate becomes accurate with far fewer
+evaluations than the full grid.
 
 ## Scientific Status
 
@@ -192,11 +221,11 @@ Replace the implementation of `metric_A` and, if needed, `metric_B` in
 rest of the pipeline can remain almost unchanged:
 
 1. solve the circular null-orbit condition;
-2. compute `Omega_c`;
-3. compute `lambda_c`;
-4. train one GP for `deltaOmega`;
-5. train one GP for `deltaLambda`;
-6. infer `(w, Q)` from a target complex QNM.
+2. compute $\Omega_c$;
+3. compute $\lambda_c$;
+4. train one GP for $\delta\Omega$;
+5. train one GP for $\delta\lambda$;
+6. infer $(w,Q)$ from a target complex QNM.
 
 ## Next Improvements
 
