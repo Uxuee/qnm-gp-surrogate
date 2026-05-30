@@ -1,3 +1,9 @@
+"""Legacy toy demonstration.
+
+This script uses an artificial metric perturbation and is not the
+paper-connected model. The main scientific script is `kiselev_gp_surrogate.py`.
+"""
+
 from __future__ import annotations
 
 import warnings
