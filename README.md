@@ -21,7 +21,7 @@ approximation while also estimating where it is uncertain.
 
 Here, the input parameters are:
 
-- `w`: equation-of-state/profile parameter.
+- $w_\theta$: equation-of-state/profile parameter.
 - `Q`: perturbation strength.
 
 The learned targets are:
@@ -35,7 +35,7 @@ $$\omega_{\rm QNM} = \ell\,\Omega_c - i\left(n+\frac{1}{2}\right)\lambda_c .$$
 
 where $\Omega_c$ is the circular null-orbit frequency, $\lambda_c$ is the
 Lyapunov exponent, $\ell$ is the angular mode, and $n$ is the overtone number.
-The current run uses $\ell=4$ and $n=0$, closer to the large-$\ell$ regime
+The current run uses $\ell=4$ and $n=0$, closer to the large- $\ell$ regime
 where the eikonal approximation is expected to be most appropriate.
 
 ## What the Script Does
@@ -46,11 +46,11 @@ where the eikonal approximation is expected to be most appropriate.
    $rA^{\prime}(r) - 2A(r) = 0$.
 
 4. Computes `Omega_c`, `lambda_c`, and the complex eikonal QNM frequency.
-5. Generates a grid dataset over `(w, Q)`.
+5. Generates a grid dataset over ($w_\theta$, Q).
 6. Trains two Gaussian Process regressors on a sparse subset of the grid:
 
-- (w, Q) → δΩ
-- (w, Q) → δλ
+- ($w_\theta$, Q) → δΩ
+- ($w_\theta$, Q) → δλ
   
 8. Tests on withheld grid points.
 9. Compares the GP against linear, polynomial, and random-forest baselines.
@@ -122,9 +122,9 @@ Inverse search example:
 
 | Quantity | Value |
 | --- | ---: |
-| Target `w` | `0.630000` |
+| Target $w_\theta$ | `0.630000` |
 | Target `Q` | `0.072000` |
-| Recovered `w` | `0.630000` |
+| Recovered $w_\theta$ | `0.630000` |
 | Recovered `Q` | `0.072000` |
 | Target `Re(omega)` | `0.840640` |
 | Target `Im(omega)` | `-0.104041` |
