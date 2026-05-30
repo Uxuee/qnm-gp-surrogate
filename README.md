@@ -76,18 +76,23 @@ deltaLambda/lambda0 = lambda_star/lambda0 - 1
 ```text
 .
 |-- kiselev_gp_surrogate.py        # Main paper-connected Kiselev GP surrogate
+|-- inverse_qnm_matter_diagnostics.py # Inverse QNM matter diagnostics
 |-- legacy/
 |   `-- toy_metric_surrogate.py    # Old toy demonstration, not main result
 |-- requirements.txt
 |-- CITATION.cff
 |-- LICENSE
 |-- outputs/
-|   `-- kiselev/
-|       |-- kiselev_qnm_dataset.csv
-|       |-- gp_metrics.csv
-|       |-- baseline_metrics.csv
-|       |-- learning_curve.csv
-|       |-- parameter_search.csv
+|   |-- kiselev/
+|   |   |-- kiselev_qnm_dataset.csv
+|   |   |-- gp_metrics.csv
+|   |   |-- baseline_metrics.csv
+|   |   |-- learning_curve.csv
+|   |   |-- parameter_search.csv
+|   |   `-- *.png
+|   `-- inverse_diagnostics/
+|       |-- inverse_diagnostics.csv
+|       |-- profile_reconstruction.csv
 |       `-- *.png
 `-- README.md
 ```
@@ -112,6 +117,18 @@ The script regenerates all Kiselev outputs in:
 
 ```text
 outputs/kiselev/
+```
+
+Run the inverse diagnostic module with:
+
+```powershell
+python inverse_qnm_matter_diagnostics.py
+```
+
+This writes diagnostic outputs to:
+
+```text
+outputs/inverse_diagnostics/
 ```
 
 ## Current Results
@@ -200,11 +217,118 @@ Caption: Test RMSE versus number of Kiselev training evaluations. This checks
 how rapidly the GP surrogate improves as more forward-model evaluations are
 added.
 
+## Inverse QNM Matter Diagnostics
+
+The script `inverse_qnm_matter_diagnostics.py` adds a physically meaningful
+inverse-analysis layer. It starts from a target complex eikonal QNM frequency,
+
+```text
+omega_QNM = ell * Omega - i * (n + 1/2) * lambda
+```
+
+and extracts the two real observables:
+
+```text
+Omega  = Re(omega_QNM) / ell
+lambda = -Im(omega_QNM) / (n + 1/2)
+```
+
+Using the Schwarzschild reference values
+
+```text
+Omega0 = 1/(3 sqrt(3) M)
+lambda0 = 1/(3 sqrt(3) M)
+r0 = 3M
+```
+
+the code computes:
+
+```text
+A = deltaOmega/Omega0  = Omega/Omega0 - 1
+B = deltaLambda/lambda0 = lambda/lambda0 - 1
+```
+
+In the static anisotropic-fluid approximation, these determine the diagnostic
+combinations:
+
+```text
+delta_f(r0) = (2/3) * A
+I_rho       = integral_{r0}^{infinity} rho(s) s^2 ds
+            = r0 * A / (12*pi)
+local_combo = rho(r0) * (1 + w_theta)
+            = (A - B) / (4*pi*r0^2)
+```
+
+These are matter diagnostics, not a unique matter reconstruction. One complex
+QNM gives only two real numbers, `Omega` and `lambda`. Therefore it cannot
+uniquely determine the full density profile `rho(r)` or `w_theta` separately
+without an additional assumption.
+
+The module validates the inverse formulas using:
+
+- Kiselev analytic QNM shifts from `kiselev_gp_surrogate.py`
+- Bardeen first-order shifts:
+  - `deltaOmega/Omega0 = q^2/(6 M^2)`
+  - `deltaLambda/lambda0 = -q^2/(9 M^2)`
+- Hayward first-order shifts:
+  - `deltaOmega/Omega0 = q^3/(27 M^3)`
+  - `deltaLambda/lambda0 = -2 q^3/(27 M^3)`
+
+It saves:
+
+```text
+outputs/inverse_diagnostics/inverse_diagnostics.csv
+outputs/inverse_diagnostics/profile_reconstruction.csv
+```
+
+and diagnostic plots comparing the inferred trends across Kiselev, Bardeen,
+and Hayward examples.
+
+### Conditional Profile Reconstruction
+
+The script also includes an optional parametric reconstruction. If one assumes
+
+```text
+rho(r) = rho0 * exp(-(r-r0)/L)
+```
+
+with fixed `L`, then `I_rho` can be used to estimate `rho0`, and
+`local_combo = rho(r0)(1+w_theta)` can be used to estimate `w_theta`.
+
+This reconstruction is conditional on the assumed density profile and fixed
+length scale `L`. It should not be interpreted as a model-independent
+reconstruction of the matter sector.
+
+### Inverse Diagnostic Figures
+
+![Relative shifts by model](outputs/inverse_diagnostics/relative_shifts_by_model.png)
+
+Caption: Relative shifts `A = deltaOmega/Omega0` and
+`B = deltaLambda/lambda0` versus the model parameter. Bardeen and Hayward use
+`q`; Kiselev uses `k` at several fixed `w_q` values.
+
+![Integrated density diagnostic](outputs/inverse_diagnostics/I_rho_by_model.png)
+
+Caption: Inferred integrated density diagnostic `I_rho` versus the model
+parameter for Kiselev, Bardeen, and Hayward examples.
+
+![Local pressure-density combination](outputs/inverse_diagnostics/local_combo_by_model.png)
+
+Caption: Inferred local combination `rho(r0)(1+w_theta)` versus the model
+parameter.
+
+![Diagnostic trend comparison](outputs/inverse_diagnostics/diagnostic_trend_comparison.png)
+
+Caption: Comparison of inferred diagnostic trend ranges across the validation
+models.
+
 ## Scientific Status
 
 The main Kiselev script is paper-connected because it uses the analytic Kiselev
 QNM-shift formulas. The current forward model is analytic and cheap, so this is
-a validation/prototype of the surrogate workflow.
+a validation/prototype of the surrogate workflow. The inverse diagnostic module
+adds a physical use beyond surrogate interpolation by translating QNM shifts
+into matter diagnostic combinations.
 
 The next step is to replace the analytic formulas with more expensive numerical
 forward models, such as rotating hairy black-hole formulas or numerical
