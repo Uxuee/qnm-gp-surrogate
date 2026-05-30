@@ -63,6 +63,7 @@ where the eikonal approximation is expected to be most appropriate.
 ```text
 .
 |-- qnm_surrogate.py          # Main physics + ML pipeline
+|-- paper_connected_kiselev_gp.py # Paper-connected Kiselev analytic model
 |-- requirements.txt          # Python dependencies
 |-- CITATION.cff              # Citation metadata for GitHub
 |-- LICENSE                   # MIT license
@@ -94,6 +95,72 @@ python qnm_surrogate.py
 
 The script regenerates the dataset, trains sparse-data GP models, and compares
 baselines, runs parameter recovery, and writes all outputs to `outputs/`.
+
+## Paper-Connected Kiselev Model
+
+The script `paper_connected_kiselev_gp.py` replaces the toy metric with the
+static Kiselev form used in the paper:
+
+$$
+f(r)=1-\frac{2M}{r}-\frac{k}{r^{1+3w_q}} .
+$$
+
+The implementation uses
+
+$$
+M=1,\qquad r_0=3M,
+$$
+
+and samples a grid in the physical parameters $(w_q,k)$ with small $|k|$.
+The analytic QNM ingredient shifts are
+
+$$
+\Omega_\star
+=\Omega_0\left[
+1-\frac{3k}{2(3M)^{1+3w_q}}
+\right],
+$$
+
+and
+
+$$
+\lambda_\star
+=\lambda_0\left[
+1+\frac{\left(3w_q(1+w_q)-2\right)k}
+{4\,3^{3w_q}M^{1+3w_q}}
+\right].
+$$
+
+The two surrogate targets are the relative shifts
+
+$$
+\frac{\delta\Omega}{\Omega_0}
+=\frac{\Omega_\star}{\Omega_0}-1,
+\qquad
+\frac{\delta\lambda}{\lambda_0}
+=\frac{\lambda_\star}{\lambda_0}-1.
+$$
+
+Run the paper-connected version with:
+
+```powershell
+python paper_connected_kiselev_gp.py
+```
+
+It writes its results to `outputs/kiselev/`, including sparse GP metrics,
+baseline comparisons, uncertainty maps, error maps, a learning curve, and an
+inverse parameter-search example.
+
+For the current Kiselev run, the GP is trained on 80 simulations and tested on
+704 withheld grid points:
+
+| Target | RMSE | MAE | R2 | Mean GP sigma |
+| --- | ---: | ---: | ---: | ---: |
+| $\delta\Omega/\Omega_0$ | `1.28e-04` | `2.64e-05` | `0.999997` | `1.09e-04` |
+| $\delta\lambda/\lambda_0$ | `4.55e-05` | `1.44e-05` | `0.9999997` | `4.90e-05` |
+
+The inverse search target was $(w_q,k)=(-0.72,0.012)$ and the surrogate
+recovered approximately $(w_q,k)=(-0.7189,0.01204)$.
 
 ## Example Results
 
@@ -181,6 +248,60 @@ $|\delta\lambda_{\rm true}-\delta\lambda_{\rm GP}|$ on the full grid.
 ![Sparse-data learning curve](outputs/learning_curve.png)
 
 Caption: Test RMSE as the number of training simulations increases. This is the main evidence that the surrogate becomes accurate with far fewer evaluations than the full grid.
+
+## Kiselev Figures
+
+### Kiselev GP Prediction for $\delta\Omega/\Omega_0$
+
+![Kiselev GP prediction for deltaOmega over Omega0](outputs/kiselev/deltaOmega_over_Omega0_prediction.png)
+
+Caption: GP prediction for the relative orbital-frequency shift
+$\delta\Omega/\Omega_0$ over the Kiselev parameter space $(w_q,k)$. White
+points are the sparse training simulations.
+
+### Kiselev GP Uncertainty for $\delta\Omega/\Omega_0$
+
+![Kiselev GP uncertainty for deltaOmega over Omega0](outputs/kiselev/deltaOmega_over_Omega0_uncertainty.png)
+
+Caption: Posterior GP standard deviation for $\delta\Omega/\Omega_0$. This is
+the model's uncertainty estimate, not an additional physical observable.
+
+### Kiselev Absolute Error for $\delta\Omega/\Omega_0$
+
+![Kiselev absolute error for deltaOmega over Omega0](outputs/kiselev/deltaOmega_over_Omega0_error.png)
+
+Caption: Absolute error
+$|(\delta\Omega/\Omega_0)_{\rm true}-(\delta\Omega/\Omega_0)_{\rm GP}|$ on the
+full evaluation grid.
+
+### Kiselev GP Prediction for $\delta\lambda/\lambda_0$
+
+![Kiselev GP prediction for deltaLambda over lambda0](outputs/kiselev/deltaLambda_over_lambda0_prediction.png)
+
+Caption: GP prediction for the relative Lyapunov-exponent shift
+$\delta\lambda/\lambda_0$ over $(w_q,k)$.
+
+### Kiselev GP Uncertainty for $\delta\lambda/\lambda_0$
+
+![Kiselev GP uncertainty for deltaLambda over lambda0](outputs/kiselev/deltaLambda_over_lambda0_uncertainty.png)
+
+Caption: Posterior GP standard deviation for $\delta\lambda/\lambda_0$.
+
+### Kiselev Absolute Error for $\delta\lambda/\lambda_0$
+
+![Kiselev absolute error for deltaLambda over lambda0](outputs/kiselev/deltaLambda_over_lambda0_error.png)
+
+Caption: Absolute error
+$|(\delta\lambda/\lambda_0)_{\rm true}-(\delta\lambda/\lambda_0)_{\rm GP}|$ on
+the full evaluation grid.
+
+### Kiselev Learning Curve
+
+![Kiselev sparse-data learning curve](outputs/kiselev/learning_curve.png)
+
+Caption: Test RMSE versus the number of Kiselev training simulations. The
+curve checks whether the GP surrogate improves systematically as more
+paper-connected forward-model evaluations are added.
 
 ## Scientific Status
 
